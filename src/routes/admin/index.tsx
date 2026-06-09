@@ -3,9 +3,11 @@ import { useEffect, useState } from "react";
 import {
   Building2, Users, TrendingUp, Wallet, LogOut, Compass, Bell,
   Shield, Star, MapPin, Check, X, Eye, Search, ChevronDown,
-  Home, BarChart3, Settings, ListChecks, BellRing, Menu,
+  BarChart3, Settings, ListChecks, BellRing, Menu,
+  Trash2, Pencil, IndianRupee, BedDouble, FileText,
 } from "lucide-react";
 import { isAdminAuthenticated, adminLogout } from "@/lib/adminAuth";
+import { getStoredProperties, deleteStoredProperty, updateStoredProperty, type StoredProperty } from "@/lib/session";
 
 export const Route = createFileRoute("/admin/")({
   component: AdminDashboard,
@@ -67,6 +69,7 @@ const NAV_ITEMS = [
   { icon: BarChart3, label: "Overview", id: "overview" },
   { icon: Building2, label: "PG Listings", id: "listings" },
   { icon: Users, label: "Users", id: "users" },
+  { icon: FileText, label: "Documents", id: "documents" },
   { icon: ListChecks, label: "Bookings", id: "bookings" },
   { icon: BellRing, label: "Activity", id: "activity" },
   { icon: Settings, label: "Settings", id: "settings" },
@@ -167,62 +170,229 @@ function Overview() {
   );
 }
 
+/* ── unified PG type for state ── */
+interface AnyPG {
+  id: string; name: string; city: string; owner: string;
+  price: number; status: string; verified: boolean; rating: number;
+  type?: string; totalBeds?: number; amenities?: string[];
+  rooms?: Record<string, { price: string; beds: string; ac: boolean; label?: string } | null>;
+  createdAt?: string;
+  isStored: boolean;
+}
+
+/* ── Edit Modal ── */
+function EditModal({ pg, onSave, onClose }: {
+  pg: AnyPG;
+  onSave: (patch: Partial<AnyPG>) => void;
+  onClose: () => void;
+}) {
+  const [name, setName]     = useState(pg.name);
+  const [city, setCity]     = useState(pg.city);
+  const [price, setPrice]   = useState(String(pg.price));
+  const [status, setStatus] = useState(pg.status);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={onClose}>
+      <div className="w-full max-w-sm rounded-2xl glass-strong border border-white/10 p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <p className="font-semibold">Edit Property</p>
+          <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10 transition-colors"><X className="h-4 w-4" /></button>
+        </div>
+        {([
+          { label: "Property Name", value: name,         set: setName,  icon: Building2,    type: "text"   },
+          { label: "Location",      value: city,         set: setCity,  icon: MapPin,        type: "text"   },
+          { label: "Starting Rent", value: price,        set: setPrice, icon: IndianRupee,  type: "number" },
+        ] as const).map(({ label, value, set, icon: Icon, type }) => (
+          <div key={label} className="space-y-1.5">
+            <label className="text-xs font-medium text-muted-foreground">{label}</label>
+            <div className="relative">
+              <Icon className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
+              <input type={type} value={value} onChange={(e) => (set as (v: string) => void)(e.target.value)}
+                className="w-full rounded-xl bg-white/5 border border-white/10 pl-10 pr-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all" />
+            </div>
+          </div>
+        ))}
+        <div className="space-y-1.5">
+          <label className="text-xs font-medium text-muted-foreground">Status</label>
+          <div className="grid grid-cols-3 gap-2">
+            {["Active", "Pending", "Suspended"].map((s) => (
+              <button key={s} type="button" onClick={() => setStatus(s)}
+                className={`rounded-xl border py-2 text-xs font-medium transition-all ${
+                  status === s ? "border-primary/50 bg-primary/15 text-primary" : "border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10"
+                }`}>{s}</button>
+            ))}
+          </div>
+        </div>
+        <button onClick={() => { onSave({ name, city, price: Number(price), status }); onClose(); }}
+          className="w-full rounded-xl py-3 text-sm font-semibold text-primary-foreground shadow-glow transition-all"
+          style={{ background: "var(--gradient-primary)" }}>
+          Save Changes
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ── Manage Drawer ── */
+function ManageDrawer({ pg, onClose }: { pg: AnyPG; onClose: () => void }) {
+  const rooms = pg.rooms
+    ? (Object.values(pg.rooms).filter(Boolean) as Array<{ price: string; beds: string; ac: boolean; label?: string }>)
+    : [];
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div className="h-full w-full max-w-sm overflow-y-auto rounded-l-2xl glass-strong border-l border-white/10 p-6 space-y-5"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between">
+          <p className="font-bold text-base">Manage Property</p>
+          <button onClick={onClose} className="rounded-lg p-1.5 hover:bg-white/10 transition-colors"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="rounded-2xl bg-gradient-to-br from-primary/20 to-violet-500/20 p-5 space-y-1">
+          <p className="font-bold text-lg">{pg.name}</p>
+          <p className="flex items-center gap-1 text-xs text-muted-foreground"><MapPin className="h-3 w-3" />{pg.city}</p>
+          <div className="flex items-center gap-2 mt-2">
+            {pg.type && <span className="rounded-full bg-primary/15 px-2.5 py-0.5 text-xs text-primary font-medium">{pg.type}</span>}
+            <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${
+              pg.status === "Active" ? "bg-emerald-500/15 text-emerald-400" :
+              pg.status === "Suspended" ? "bg-red-500/15 text-red-400" : "bg-amber-500/15 text-amber-400"
+            }`}>{pg.status}</span>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          {[
+            { label: "Starting Rent", val: `₹${pg.price.toLocaleString()}`,          icon: IndianRupee },
+            { label: "Total Beds",    val: pg.totalBeds ? String(pg.totalBeds) : "—", icon: BedDouble },
+            { label: "Owner",         val: pg.owner,                                   icon: Users },
+            { label: "Listed On",     val: pg.createdAt ?? "—",                       icon: Shield },
+          ].map(({ label, val, icon: Icon }) => (
+            <div key={label} className="rounded-xl bg-white/5 p-3">
+              <div className="flex items-center gap-1.5 text-muted-foreground mb-1"><Icon className="h-3.5 w-3.5" /><span className="text-[10px]">{label}</span></div>
+              <p className="text-sm font-semibold truncate">{val}</p>
+            </div>
+          ))}
+        </div>
+        {rooms.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Room Types</p>
+            {rooms.map((r, i) => (
+              <div key={i} className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3">
+                <div>
+                  <p className="text-sm font-medium">{r.label ?? `Room ${i + 1}`}</p>
+                  <p className="text-xs text-muted-foreground">{r.beds} beds · {r.ac ? "AC" : "Non-AC"}</p>
+                </div>
+                <p className="text-sm font-bold text-primary">₹{Number(r.price).toLocaleString()}/mo</p>
+              </div>
+            ))}
+          </div>
+        )}
+        {pg.amenities && pg.amenities.length > 0 && (
+          <div className="space-y-2">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Amenities</p>
+            <div className="flex flex-wrap gap-2">
+              {pg.amenities.map((a) => (
+                <span key={a} className="rounded-full bg-white/8 px-3 py-1 text-xs text-muted-foreground capitalize">{a}</span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function PGListings() {
-  const [search, setSearch] = useState("");
-  const filtered = PGS.filter((p) =>
+  const [search, setSearch]         = useState("");
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [editTarget, setEditTarget] = useState<AnyPG | null>(null);
+  const [manageTarget, setManage]   = useState<AnyPG | null>(null);
+
+  const initialStatic: AnyPG[] = PGS.map((p) => ({
+    id: p.id, name: p.name, city: p.city, owner: p.owner,
+    price: p.price, status: p.status, verified: p.verified, rating: p.rating,
+    isStored: false,
+  }));
+
+  const [allPGs, setAllPGs] = useState<AnyPG[]>(() => [
+    ...initialStatic,
+    ...getStoredProperties().map((p): AnyPG => ({
+      id: p.id, name: p.name, city: p.location, owner: p.owner,
+      price: p.rent, status: p.status, verified: p.verified, rating: p.rating,
+      type: p.type, totalBeds: p.totalBeds, amenities: p.amenities,
+      rooms: p.rooms as AnyPG["rooms"], createdAt: p.createdAt,
+      isStored: true,
+    })),
+  ]);
+
+  const handleDelete = (id: string) => {
+    const target = allPGs.find((p) => p.id === id);
+    if (target?.isStored) deleteStoredProperty(id);
+    setAllPGs((prev) => prev.filter((p) => p.id !== id));
+    setConfirmDel(null);
+  };
+
+  const handleEdit = (id: string, patch: Partial<AnyPG>) => {
+    setAllPGs((prev) => prev.map((p) => p.id === id ? { ...p, ...patch } : p));
+    const target = allPGs.find((p) => p.id === id);
+    if (target?.isStored) {
+      updateStoredProperty(id, {
+        name: patch.name ?? target.name,
+        location: patch.city ?? target.city,
+        rent: patch.price ?? target.price,
+        status: (patch.status ?? target.status) as StoredProperty["status"],
+      });
+    }
+  };
+
+  const filtered = allPGs.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
     p.city.toLowerCase().includes(search.toLowerCase()) ||
     p.owner.toLowerCase().includes(search.toLowerCase())
   );
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-4">
-        <h2 className="text-lg font-semibold">PG Listings</h2>
+        <div>
+          <h2 className="text-lg font-semibold">PG Listings</h2>
+          <p className="text-xs text-muted-foreground mt-0.5">{allPGs.length} total</p>
+        </div>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search PGs…"
-            className="rounded-xl bg-white/5 border border-white/10 pl-9 pr-4 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 w-56"
-          />
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search PGs…"
+            className="rounded-xl bg-white/5 border border-white/10 pl-9 pr-4 py-2 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/50 w-56" />
         </div>
       </div>
+
       <div className="rounded-2xl glass-strong shadow-soft overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-white/5 text-left text-xs text-muted-foreground">
-                <th className="px-5 py-3.5 font-medium">PG</th>
-                <th className="px-5 py-3.5 font-medium">City</th>
-                <th className="px-5 py-3.5 font-medium">Owner</th>
-                <th className="px-5 py-3.5 font-medium">Price</th>
-                <th className="px-5 py-3.5 font-medium">Rating</th>
-                <th className="px-5 py-3.5 font-medium">Verified</th>
-                <th className="px-5 py-3.5 font-medium">Status</th>
-                <th className="px-5 py-3.5 font-medium">Actions</th>
+                {["PG", "City", "Owner", "Price", "Rating", "Verified", "Status", "Actions"].map((h) => (
+                  <th key={h} className="px-5 py-3.5 font-medium whitespace-nowrap">{h}</th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {filtered.map((pg, i) => (
-                <tr key={pg.id} className={`border-b border-white/5 transition-colors hover:bg-white/5 ${i === filtered.length - 1 ? "border-0" : ""}`}>
+                <tr key={pg.id} className={`border-b border-white/5 transition-colors hover:bg-white/4 ${i === filtered.length - 1 ? "border-0" : ""}`}>
                   <td className="px-5 py-4">
-                    <div>
-                      <p className="font-medium">{pg.name}</p>
-                      <p className="text-xs text-muted-foreground">{pg.id}</p>
+                    <div className="flex items-center gap-2">
+                      <div>
+                        <p className="font-medium">{pg.name}</p>
+                        <p className="text-xs text-muted-foreground">{pg.id}</p>
+                      </div>
+                      {pg.isStored && <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] text-primary font-medium">New</span>}
                     </div>
                   </td>
                   <td className="px-5 py-4">
-                    <div className="flex items-center gap-1.5 text-muted-foreground">
-                      <MapPin className="h-3 w-3" />{pg.city}
-                    </div>
+                    <div className="flex items-center gap-1.5 text-muted-foreground"><MapPin className="h-3 w-3" />{pg.city}</div>
                   </td>
                   <td className="px-5 py-4 text-muted-foreground">{pg.owner}</td>
                   <td className="px-5 py-4 font-medium text-primary">₹{pg.price.toLocaleString()}</td>
                   <td className="px-5 py-4">
                     <div className="flex items-center gap-1">
                       <Star className="h-3.5 w-3.5 fill-amber-400 text-amber-400" />
-                      <span>{pg.rating}</span>
+                      <span>{pg.rating || "—"}</span>
                     </div>
                   </td>
                   <td className="px-5 py-4">
@@ -232,9 +402,19 @@ function PGListings() {
                   </td>
                   <td className="px-5 py-4"><StatusBadge status={pg.status} /></td>
                   <td className="px-5 py-4">
-                    <div className="flex gap-2">
-                      <button className="rounded-lg bg-white/5 p-1.5 hover:bg-white/10 transition-colors"><Eye className="h-3.5 w-3.5" /></button>
-                      <button className="rounded-lg bg-white/5 p-1.5 hover:bg-white/10 transition-colors"><Shield className="h-3.5 w-3.5" /></button>
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => setManage(pg)} title="Manage"
+                        className="flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1.5 text-xs text-primary hover:bg-primary/20 transition-colors">
+                        <Eye className="h-3.5 w-3.5" /> Manage
+                      </button>
+                      <button onClick={() => setEditTarget(pg)} title="Edit"
+                        className="rounded-lg bg-white/8 p-1.5 text-muted-foreground hover:bg-white/15 hover:text-foreground transition-colors">
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      <button onClick={() => setConfirmDel(pg.id)} title="Delete"
+                        className="rounded-lg bg-red-500/10 p-1.5 text-red-400 hover:bg-red-500/20 transition-colors">
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
                     </div>
                   </td>
                 </tr>
@@ -243,6 +423,26 @@ function PGListings() {
           </table>
         </div>
       </div>
+
+      {/* Confirm delete */}
+      {confirmDel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setConfirmDel(null)}>
+          <div className="w-full max-w-xs rounded-2xl glass-strong border border-white/10 p-6 space-y-4 text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="grid h-12 w-12 place-items-center rounded-full bg-red-500/15 text-red-400 mx-auto"><Trash2 className="h-6 w-6" /></div>
+            <div>
+              <p className="font-semibold">Delete Property?</p>
+              <p className="text-xs text-muted-foreground mt-1">This action cannot be undone.</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDel(null)} className="flex-1 rounded-xl glass py-2.5 text-sm font-medium hover:bg-white/10 transition-all">Cancel</button>
+              <button onClick={() => handleDelete(confirmDel)} className="flex-1 rounded-xl bg-red-500/20 py-2.5 text-sm font-semibold text-red-400 hover:bg-red-500/30 transition-all">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editTarget  && <EditModal  pg={editTarget}  onClose={() => setEditTarget(null)} onSave={(p) => { handleEdit(editTarget.id, p); setEditTarget(null); }} />}
+      {manageTarget && <ManageDrawer pg={manageTarget} onClose={() => setManage(null)} />}
     </div>
   );
 }
@@ -311,6 +511,133 @@ function UsersPanel() {
   );
 }
 
+/* ── mock documents ── */
+const DOCUMENTS = [
+  { id: "DOC-001", owner: "Ramesh Kumar",  pg: "Skyline Residency", type: "Aadhaar Card",      uploaded: "10 Jun 2025", status: "Pending" },
+  { id: "DOC-002", owner: "Priya Sharma",  pg: "Aurora Co-living",  type: "PAN Card",          uploaded: "8 Jun 2025",  status: "Approved" },
+  { id: "DOC-003", owner: "Sunil Rao",     pg: "The Loft House",    type: "Property Deed",     uploaded: "5 Jun 2025",  status: "Pending" },
+  { id: "DOC-004", owner: "Aisha Khan",    pg: "Nest North",        type: "Electricity Bill",  uploaded: "3 Jun 2025",  status: "Approved" },
+  { id: "DOC-005", owner: "Vikram Mehta",  pg: "Marine Studios",    type: "Aadhaar Card",      uploaded: "1 Jun 2025",  status: "Rejected" },
+  { id: "DOC-006", owner: "Neha Joshi",    pg: "Velocity Stays",    type: "NOC Certificate",   uploaded: "28 May 2025", status: "Pending" },
+  { id: "DOC-007", owner: "Karthik S.",    pg: "Urban Nest",        type: "PAN Card",          uploaded: "25 May 2025", status: "Pending" },
+];
+
+function VerificationDocuments() {
+  const [docs, setDocs] = useState(DOCUMENTS);
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [viewDoc, setViewDoc]       = useState<(typeof DOCUMENTS)[0] | null>(null);
+
+  const statusColor: Record<string, string> = {
+    Approved: "bg-emerald-500/15 text-emerald-400",
+    Pending:  "bg-amber-500/15 text-amber-400",
+    Rejected: "bg-red-500/15 text-red-400",
+  };
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h2 className="text-lg font-semibold">Verification Documents</h2>
+        <p className="text-xs text-muted-foreground mt-0.5">{docs.length} documents submitted</p>
+      </div>
+
+      <div className="rounded-2xl glass-strong shadow-soft overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-white/5 text-left text-xs text-muted-foreground">
+                {["Document ID", "Owner", "PG Name", "Document Type", "Uploaded", "Status", "Actions"].map((h) => (
+                  <th key={h} className="px-5 py-3.5 font-medium whitespace-nowrap">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {docs.map((doc, i) => (
+                <tr key={doc.id} className={`border-b border-white/5 transition-colors hover:bg-white/4 ${i === docs.length - 1 ? "border-0" : ""}`}>
+                  <td className="px-5 py-4 text-muted-foreground text-xs">{doc.id}</td>
+                  <td className="px-5 py-4 font-medium">{doc.owner}</td>
+                  <td className="px-5 py-4 text-muted-foreground">{doc.pg}</td>
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-1.5">
+                      <FileText className="h-3.5 w-3.5 text-muted-foreground" />
+                      {doc.type}
+                    </div>
+                  </td>
+                  <td className="px-5 py-4 text-muted-foreground">{doc.uploaded}</td>
+                  <td className="px-5 py-4">
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${statusColor[doc.status]}`}>{doc.status}</span>
+                  </td>
+                  <td className="px-5 py-4">
+                    <div className="flex items-center gap-1.5">
+                      <button onClick={() => setViewDoc(doc)} title="View"
+                        className="flex items-center gap-1 rounded-lg bg-primary/10 px-2.5 py-1.5 text-xs text-primary hover:bg-primary/20 transition-colors">
+                        <Eye className="h-3.5 w-3.5" /> View
+                      </button>
+                      <button onClick={() => setConfirmDel(doc.id)} title="Delete"
+                        className="flex items-center gap-1 rounded-lg bg-red-500/10 px-2.5 py-1.5 text-xs text-red-400 hover:bg-red-500/20 transition-colors">
+                        <Trash2 className="h-3.5 w-3.5" /> Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Confirm delete */}
+      {confirmDel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setConfirmDel(null)}>
+          <div className="w-full max-w-xs rounded-2xl glass-strong border border-white/10 p-6 space-y-4 text-center" onClick={(e) => e.stopPropagation()}>
+            <div className="grid h-12 w-12 place-items-center rounded-full bg-red-500/15 text-red-400 mx-auto"><Trash2 className="h-6 w-6" /></div>
+            <div>
+              <p className="font-semibold">Delete Document?</p>
+              <p className="text-xs text-muted-foreground mt-1">This action cannot be undone.</p>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setConfirmDel(null)} className="flex-1 rounded-xl glass py-2.5 text-sm font-medium hover:bg-white/10 transition-all">Cancel</button>
+              <button onClick={() => { setDocs((d) => d.filter((doc) => doc.id !== confirmDel)); setConfirmDel(null); }}
+                className="flex-1 rounded-xl bg-red-500/20 py-2.5 text-sm font-semibold text-red-400 hover:bg-red-500/30 transition-all">Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* View modal */}
+      {viewDoc && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setViewDoc(null)}>
+          <div className="w-full max-w-sm rounded-2xl glass-strong border border-white/10 p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <p className="font-semibold">Document Details</p>
+              <button onClick={() => setViewDoc(null)} className="rounded-lg p-1.5 hover:bg-white/10 transition-colors"><X className="h-4 w-4" /></button>
+            </div>
+            <div className="space-y-3">
+              {([
+                ["Document ID",   viewDoc.id],
+                ["Owner",         viewDoc.owner],
+                ["PG Name",       viewDoc.pg],
+                ["Document Type", viewDoc.type],
+                ["Uploaded",      viewDoc.uploaded],
+                ["Status",        viewDoc.status],
+              ] as [string, string][]).map(([label, val]) => (
+                <div key={label} className="flex items-center justify-between rounded-xl bg-white/5 px-4 py-3">
+                  <span className="text-xs text-muted-foreground">{label}</span>
+                  <span className={`text-sm font-medium ${
+                    label === "Status" ? (statusColor[val] ?? "").replace("bg-", "").split(" ")[1] ?? "" : ""
+                  }`}>{val}</span>
+                </div>
+              ))}
+            </div>
+            <div className="rounded-xl bg-white/5 flex items-center justify-center h-32 text-muted-foreground text-sm">
+              <FileText className="h-8 w-8 opacity-30 mr-2" /> Document preview unavailable
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ComingSoon({ label }: { label: string }) {
   return (
     <div className="flex h-64 flex-col items-center justify-center rounded-2xl glass-strong text-center">
@@ -335,6 +662,7 @@ function AdminDashboard() {
     if (active === "overview") return <Overview />;
     if (active === "listings") return <PGListings />;
     if (active === "users") return <UsersPanel />;
+    if (active === "documents") return <VerificationDocuments />;
     return <ComingSoon label={NAV_ITEMS.find((n) => n.id === active)?.label ?? active} />;
   }
 

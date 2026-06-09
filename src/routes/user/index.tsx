@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+﻿import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence, useInView, type Variants } from "framer-motion";
 import {
@@ -9,9 +9,12 @@ import {
   CheckCircle2, Clock, AlertCircle, ArrowRight,
   Phone, Mail, Calendar, Heart, MessageCircle,
   TrendingUp, BedDouble, Building2, FileText,
-  Sparkles, Bot, Check,
+  Sparkles, Bot, Check, Trash2, Upload, X,
 } from "lucide-react";
-import { getSession, clearSession } from "@/lib/session";
+import pgRoom1 from "@/assets/pg-room-1.jpg";
+import pgRoom2 from "@/assets/pg-room-2.jpg";
+import pgRoom3 from "@/assets/pg-room-3.jpg";
+import { getSession, clearSession, getStoredResidents, updateStoredResident } from "@/lib/session";
 
 export const Route = createFileRoute("/user/")({
   component: UserDashboard,
@@ -19,13 +22,13 @@ export const Route = createFileRoute("/user/")({
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    MOCK DATA
-══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 const MY_PG = {
   name: "Skyline Residency",
-  room: "Room 204 · Double Sharing",
+  room: "Room 204 Â· Double Sharing",
   location: "Hitech City, Hyderabad",
   rent: 9500,
   dueDate: "1 Jul 2025",
@@ -46,16 +49,16 @@ const PAYMENT_HISTORY = [
   { id: "P1", month: "Jun 2025", amount: 9500, status: "Paid",    date: "1 Jun 2025", method: "UPI" },
   { id: "P2", month: "May 2025", amount: 9500, status: "Paid",    date: "1 May 2025", method: "Bank" },
   { id: "P3", month: "Apr 2025", amount: 9500, status: "Paid",    date: "1 Apr 2025", method: "UPI" },
-  { id: "P4", month: "Jul 2025", amount: 9500, status: "Pending", date: "1 Jul 2025", method: "—" },
+  { id: "P4", month: "Jul 2025", amount: 9500, status: "Pending", date: "1 Jul 2025", method: "â€”" },
 ];
 
 const PG_LISTINGS = [
-  { id: "L1", name: "Skyline Residency", area: "Hitech City", city: "Hyderabad", price: 9500,  match: 96, rating: 4.8, amenities: [Wifi, Utensils, Dumbbell], type: "Double", verified: true },
-  { id: "L2", name: "Aurora Co-living",  area: "Madhapur",    city: "Hyderabad", price: 8800,  match: 92, rating: 4.6, amenities: [Wifi, Utensils],           type: "Triple", verified: true },
-  { id: "L3", name: "Nest North",        area: "Indiranagar", city: "Bengaluru", price: 11200, match: 89, rating: 4.4, amenities: [Wifi, Utensils, Car],       type: "Single", verified: true },
-  { id: "L4", name: "The Loft House",    area: "Gachibowli",  city: "Hyderabad", price: 9900,  match: 87, rating: 4.3, amenities: [Wifi, Dumbbell],            type: "Double", verified: false },
-  { id: "L5", name: "Velocity Stays",    area: "Baner",       city: "Pune",      price: 8200,  match: 85, rating: 4.5, amenities: [Wifi, Utensils],            type: "Triple", verified: true },
-  { id: "L6", name: "Marine Studios",    area: "Powai",       city: "Mumbai",    price: 13500, match: 82, rating: 4.7, amenities: [Wifi, Utensils, Dumbbell],  type: "Single", verified: true },
+  { id: "L1", name: "Skyline Residency", area: "Hitech City", city: "Hyderabad", price: 9500,  match: 96, rating: 4.8, amenities: [Wifi, Utensils, Dumbbell], type: "Double", verified: true,  owner: "Ramesh Kumar", phone: "98765 43210", totalBeds: 32, available: 2,  description: "Premium co-living space in the heart of Hitech City. Modern amenities, high-speed WiFi, and a vibrant community await you.", rules: ["No guests after 10pm", "Veg food only in common kitchen", "Quiet hours 11pmâ€“7am", "No smoking inside"] },
+  { id: "L2", name: "Aurora Co-living",  area: "Madhapur",    city: "Hyderabad", price: 8800,  match: 92, rating: 4.6, amenities: [Wifi, Utensils],           type: "Triple", verified: true,  owner: "Priya Sharma",  phone: "91234 56789", totalBeds: 20, available: 4,  description: "Affordable co-living with homely food and a great location near top IT companies in Madhapur.", rules: ["No smoking", "Rent by 1st of month", "Common area cleaning roster"] },
+  { id: "L3", name: "Nest North",        area: "Indiranagar", city: "Bengaluru", price: 11200, match: 89, rating: 4.4, amenities: [Wifi, Utensils, Car],       type: "Single", verified: true,  owner: "Aisha Khan",    phone: "99887 76655", totalBeds: 24, available: 3,  description: "Single sharing luxury rooms in the upscale Indiranagar locality. Parking available for two-wheelers.", rules: ["No pets", "No loud music after 11pm", "Monthly rent in advance"] },
+  { id: "L4", name: "The Loft House",    area: "Gachibowli",  city: "Hyderabad", price: 9900,  match: 87, rating: 4.3, amenities: [Wifi, Dumbbell],            type: "Double", verified: false, owner: "Sunil Rao",     phone: "87654 32109", totalBeds: 18, available: 5,  description: "Loft-style double sharing rooms with an in-house gym. Close to HITEC City and financial district.", rules: ["Guests allowed till 9pm", "Quiet hours after midnight"] },
+  { id: "L5", name: "Velocity Stays",    area: "Baner",       city: "Pune",      price: 8200,  match: 85, rating: 4.5, amenities: [Wifi, Utensils],            type: "Triple", verified: true,  owner: "Neha Joshi",    phone: "76543 21098", totalBeds: 30, available: 7,  description: "Budget-friendly triple sharing in Baner, Pune. Freshly cooked meals included. Ideal for students and young professionals.", rules: ["Lights off by midnight", "No alcohol on premises"] },
+  { id: "L6", name: "Marine Studios",    area: "Powai",       city: "Mumbai",    price: 13500, match: 82, rating: 4.7, amenities: [Wifi, Utensils, Dumbbell],  type: "Single", verified: true,  owner: "Vikram Mehta",  phone: "65432 10987", totalBeds: 16, available: 1,  description: "Premium single-occupancy studios near Powai Lake, Mumbai. Gym, high-speed internet, and daily housekeeping included.", rules: ["No visitors without prior notice", "Strict no-smoking policy"] },
 ];
 
 const ROOMMATES = [
@@ -70,11 +73,99 @@ const MAINTENANCE_TICKETS = [
   { id: "M3", title: "Tap leaking",              category: "Plumbing",   status: "Completed",   date: "20 May 2025", priority: "Low" },
 ];
 
-const ANNOUNCEMENTS = [
-  { id: "A1", title: "Water supply disruption", body: "Water will be unavailable on 6 Jun from 10am–2pm for tank cleaning.", date: "5 Jun 2025" },
-  { id: "A2", title: "Rent due reminder",        body: "July rent is due on 1st July. Please pay via UPI or bank transfer.", date: "28 Jun 2025" },
-  { id: "A3", title: "Community meet",           body: "Monthly community meet this Saturday at 6pm in the common area.", date: "24 Jun 2025" },
-];
+interface StoredAnnouncement {
+  id: string;
+  title: string;
+  body: string;
+  property: string;
+  startDate: string;
+  endDate: string;
+  dateStr: string;
+}
+
+const getStoredAnnouncements = (): StoredAnnouncement[] => {
+  if (typeof window === "undefined") return [];
+  const KEY = "ss_announcements";
+  let announcements: StoredAnnouncement[] = [];
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      announcements = JSON.parse(raw) as StoredAnnouncement[];
+    }
+  } catch (e) {
+    console.error(e);
+  }
+
+  if (announcements.length === 0) {
+    const initialMocks = [
+      { id: "AN1", title: "Water supply disruption", body: "Water will be unavailable on 6 Jun from 10amâ€“2pm for tank cleaning.", property: "All", startDate: "2026-06-05T10:00", endDate: "2026-06-06T14:00", dateStr: "5 Jun 2026, 10:00 AM - 6 Jun 2026, 2:00 PM" },
+      { id: "AN2", title: "Rent due reminder", body: "June rent is due on 1st July. Please pay via UPI or bank transfer.", property: "All", startDate: "2026-06-01T09:00", endDate: "2026-07-01T23:59", dateStr: "1 Jun 2026, 9:00 AM - 1 Jul 2026, 11:59 PM" },
+      { id: "AN3", title: "Common area maintenance", body: "Common area cleaning every Sunday 8â€“10am. Residents please cooperate.", property: "Skyline", startDate: "2026-06-01T08:00", endDate: "2026-08-31T10:00", dateStr: "1 Jun 2026, 8:00 AM - 31 Aug 2026, 10:00 AM" },
+    ];
+    try {
+      localStorage.setItem(KEY, JSON.stringify(initialMocks));
+    } catch {}
+    return initialMocks;
+  }
+  return announcements;
+};
+
+const getStoredNotices = (): string[] => {
+  if (typeof window === "undefined") return [];
+  const KEY = "ss_notice_board";
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) {
+      return JSON.parse(raw) as string[];
+    }
+  } catch {}
+  const initialNotices = [
+    "Water tank cleaning â€” Sunday 8am",
+    "Gym hours changed: 6amâ€“10pm",
+    "New food menu from July 1st"
+  ];
+  try {
+    localStorage.setItem(KEY, JSON.stringify(initialNotices));
+  } catch {}
+  return initialNotices;
+};
+
+interface StoredPollOption {
+  text: string;
+  votes: number;
+}
+
+interface StoredPoll {
+  id: string;
+  question: string;
+  options: StoredPollOption[];
+}
+
+const getStoredPolls = (): StoredPoll[] => {
+  if (typeof window === "undefined") return [];
+  const KEY = "ss_polls";
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (raw) return JSON.parse(raw) as StoredPoll[];
+  } catch {}
+  const defaults: StoredPoll[] = [
+    {
+      id: "poll-1",
+      question: "When should we hold the community meet?",
+      options: [
+        { text: "Saturday evening", votes: 12 },
+        { text: "Sunday afternoon", votes: 6 },
+        { text: "Weekday night", votes: 2 }
+      ]
+    }
+  ];
+  try {
+    localStorage.setItem(KEY, JSON.stringify(defaults));
+  } catch {}
+  return defaults;
+};
+
+
 
 const ACTIVITY = [
   { icon: CheckCircle2, text: "Rent paid for June",         time: "1 Jun",   color: "text-emerald-400" },
@@ -83,9 +174,9 @@ const ACTIVITY = [
   { icon: Users,        text: "Roommate request received",  time: "7 Jun",   color: "text-violet-400" },
 ];
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    SIDEBAR NAV
-══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 const NAV = [
   { id: "home",        label: "Home",          icon: LayoutDashboard },
@@ -98,9 +189,9 @@ const NAV = [
   { id: "profile",     label: "Profile",       icon: UserCircle },
 ];
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    SHARED PRIMITIVES
-══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 const fadeUp: Variants = {
   hidden: { opacity: 0, y: 20 },
@@ -144,13 +235,19 @@ function StatusPill({ status }: { status: string }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    1. HOME
-══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 function HomeSection({ name }: { name: string }) {
   const nextDue = PAYMENT_HISTORY.find((p) => p.status === "Pending");
   const openTickets = MAINTENANCE_TICKETS.filter((m) => m.status !== "Completed").length;
+  const announcements = getStoredAnnouncements().filter(a => {
+    if (!a.property || a.property === "All") return true;
+    const target = a.property.toLowerCase();
+    const mine = MY_PG.name.toLowerCase();
+    return mine.includes(target) || target.includes(mine);
+  });
 
   return (
     <motion.div initial="hidden" animate="show" variants={stagger} className="space-y-6">
@@ -160,7 +257,7 @@ function HomeSection({ name }: { name: string }) {
           <div className="absolute -right-10 -top-10 h-40 w-40 rounded-full opacity-20 blur-3xl" style={{ background: "var(--gradient-primary)" }} />
           <div className="relative">
             <p className="text-xs text-primary font-medium uppercase tracking-wider">Good morning</p>
-            <h2 className="mt-1 text-2xl font-semibold">{name} 👋</h2>
+            <h2 className="mt-1 text-2xl font-semibold">{name} ðŸ‘‹</h2>
             <p className="mt-1 text-sm text-muted-foreground">You're all set at {MY_PG.name}</p>
             <div className="mt-4 flex flex-wrap gap-3">
               <div className="flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-xs">
@@ -179,10 +276,10 @@ function HomeSection({ name }: { name: string }) {
       {/* quick stats */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: "Next Rent Due",     value: `₹${MY_PG.rent.toLocaleString()}`, sub: nextDue?.date ?? "—",   icon: Wallet,     color: "from-primary/20 to-cyan-500/20",     text: "text-primary" },
+          { label: "Next Rent Due",     value: `â‚¹${MY_PG.rent.toLocaleString()}`, sub: nextDue?.date ?? "â€”",   icon: Wallet,     color: "from-primary/20 to-cyan-500/20",     text: "text-primary" },
           { label: "PG Rating",         value: `${MY_PG.rating}`,                 sub: "Skyline Residency",     icon: Star,       color: "from-amber-500/20 to-orange-500/20", text: "text-amber-400" },
           { label: "Open Tickets",      value: String(openTickets),               sub: "maintenance issues",    icon: Wrench,     color: "from-red-500/20 to-rose-500/20",     text: "text-red-400" },
-          { label: "Roommate Matches",  value: String(ROOMMATES.length),          sub: "compatible profiles",   icon: Users,      color: "from-violet-500/20 to-purple-500/20",text: "text-violet-400" },
+          // { label: "Roommate Matches",  value: String(ROOMMATES.length),          sub: "compatible profiles",   icon: Users,      color: "from-violet-500/20 to-purple-500/20",text: "text-violet-400" },
         ].map((s, i) => (
           <FadeUp key={s.label} delay={i * 0.07}>
             <Card className={`p-5 relative overflow-hidden bg-gradient-to-br ${s.color}`}>
@@ -218,15 +315,19 @@ function HomeSection({ name }: { name: string }) {
 
         <FadeUp delay={0.1}>
           <Card className="p-5">
-            <p className="text-sm font-semibold mb-4">📢 Latest Announcements</p>
+            <p className="text-sm font-semibold mb-4">ðŸ“¢ Latest Announcements</p>
             <div className="space-y-3">
-              {ANNOUNCEMENTS.slice(0, 3).map((a) => (
-                <div key={a.id} className="rounded-xl bg-white/5 p-3">
-                  <p className="text-xs font-medium">{a.title}</p>
-                  <p className="mt-1 text-[10px] text-muted-foreground line-clamp-2">{a.body}</p>
-                  <p className="mt-1.5 text-[10px] text-muted-foreground">{a.date}</p>
-                </div>
-              ))}
+              {announcements.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">No recent announcements.</p>
+              ) : (
+                announcements.slice(0, 3).map((a) => (
+                  <div key={a.id} className="rounded-xl bg-white/5 p-3">
+                    <p className="text-xs font-medium">{a.title}</p>
+                    <p className="mt-1 text-[10px] text-muted-foreground line-clamp-2">{a.body}</p>
+                    <p className="mt-1.5 text-[10px] text-muted-foreground">{a.dateStr}</p>
+                  </div>
+                ))
+              )}
             </div>
           </Card>
         </FadeUp>
@@ -235,41 +336,297 @@ function HomeSection({ name }: { name: string }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+   PG DETAIL MODAL
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
+
+type PGListing = typeof PG_LISTINGS[number];
+
+
+
+/* room sharing price tiers */
+function getRoomPrices(basePrice: number) {
+  return [
+    { sharing: 1, label: "Single",  price: basePrice },
+    { sharing: 2, label: "Double",  price: Math.round(basePrice * 0.6) },
+    { sharing: 3, label: "Triple",  price: Math.round(basePrice * 0.45) },
+    { sharing: 4, label: "4-Sharing", price: Math.round(basePrice * 0.35) },
+  ];
+}
+
+function PGDetailPage({ pg, onBack }: { pg: PGListing; onBack: () => void }) {
+  const [imgIdx, setImgIdx]       = useState(0);
+  const [view360, setView360]     = useState(false);
+  const [selectedSharing, setSelectedSharing] = useState(
+    pg.type === "Single" ? 1 : pg.type === "Double" ? 2 : 3
+  );
+  const images = [pgRoom1, pgRoom2, pgRoom3];
+  const roomPrices = getRoomPrices(pg.price);
+
+  const amenityLabels: Record<string, string> = {
+    Wifi: "Wi-Fi", Utensils: "Food Included", Dumbbell: "Gym", Car: "Parking", Wind: "AC",
+  };
+  const amenityNames = pg.amenities.map((A) => {
+    const key = Object.entries({ Wifi, Utensils, Dumbbell, Car, Wind }).find(([, v]) => v === A)?.[0] ?? "";
+    return { Icon: A, label: amenityLabels[key] ?? key };
+  });
+
+  const mapsUrl = `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(pg.area + ", " + pg.city + ", India")}`;
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
+      transition={{ ease: EASE, duration: 0.35 }} className="min-h-screen">
+
+      {/* back button */}
+      <button onClick={onBack}
+        className="mb-4 flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors">
+        <ChevronRight className="h-4 w-4 rotate-180" /> Back to listings
+      </button>
+
+      <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
+
+        {/* â”€â”€ LEFT COLUMN â”€â”€ */}
+        <div className="space-y-4">
+
+          {/* HERO BANNER */}
+          <div className="relative h-72 rounded-2xl overflow-hidden bg-black">
+            <AnimatePresence mode="wait">
+              <motion.img key={imgIdx} src={images[imgIdx]} alt={pg.name}
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                transition={{ duration: 0.35 }}
+                className="w-full h-full object-cover" />
+            </AnimatePresence>
+            <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent" />
+
+            {/* badges */}
+            <div className="absolute left-4 top-4 flex items-center gap-2">
+              <span className="rounded-full bg-primary/90 px-3 py-1 text-xs font-semibold text-primary-foreground">{pg.match}% match</span>
+              {pg.verified && <span className="flex items-center gap-1 rounded-full bg-black/60 px-2.5 py-1 text-xs text-primary"><Shield className="h-3 w-3" /> Verified</span>}
+            </div>
+
+            {/* 360Â° toggle */}
+            <button onClick={() => setView360((v) => !v)}
+              className={`absolute right-4 top-4 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${view360 ? "bg-primary text-primary-foreground" : "bg-black/60 text-white hover:bg-black/80"}`}>
+              <span>360Â°</span>
+            </button>
+
+            {/* bottom info */}
+            <div className="absolute bottom-4 left-4 right-4 flex items-end justify-between">
+              <div>
+                <h1 className="text-2xl font-bold text-white">{pg.name}</h1>
+                <p className="flex items-center gap-1.5 text-sm text-white/80 mt-0.5">
+                  <MapPin className="h-3.5 w-3.5" />{pg.area}, {pg.city}
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 bg-black/60 rounded-full px-3 py-1.5">
+                <Star className="h-4 w-4 fill-amber-400 text-amber-400" />
+                <span className="text-sm font-semibold text-white">{pg.rating}</span>
+              </div>
+            </div>
+
+            {/* nav arrows */}
+            <button onClick={() => setImgIdx((i) => (i - 1 + images.length) % images.length)}
+              className="absolute left-3 top-1/2 -translate-y-1/2 grid h-9 w-9 place-items-center rounded-full bg-black/60 hover:bg-black/80 transition-colors">
+              <ChevronRight className="h-5 w-5 text-white rotate-180" />
+            </button>
+            <button onClick={() => setImgIdx((i) => (i + 1) % images.length)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 grid h-9 w-9 place-items-center rounded-full bg-black/60 hover:bg-black/80 transition-colors">
+              <ChevronRight className="h-5 w-5 text-white" />
+            </button>
+          </div>
+
+          {/* 360Â° view iframe (when toggled) */}
+          {view360 && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 320 }}
+              exit={{ opacity: 0, height: 0 }} className="rounded-2xl overflow-hidden bg-black/50 border border-white/10">
+              <iframe
+                src={`https://www.google.com/maps/embed?pb=!4v1700000000000!6m8!1m7!1sCAoSLEFGMVFpcE1VZFlXZ3dBS1VGMW1oWXlJSVg2bVdwVTVSLWFmbGNDVGpJdWlF!2m2!1d17.4435!2d78.3772!3f180!4f0!5f0.7820865974627469`}
+                className="w-full h-full border-0"
+                allowFullScreen
+                title="360Â° Room View"
+              />
+            </motion.div>
+          )}
+
+          {/* thumbnail strip */}
+          <div className="flex gap-3">
+            {images.map((img, i) => (
+              <button key={i} onClick={() => setImgIdx(i)}
+                className={`h-20 w-32 shrink-0 rounded-xl overflow-hidden border-2 transition-all ${i === imgIdx ? "border-primary" : "border-transparent opacity-60 hover:opacity-100"}`}>
+                <img src={img} alt="" className="h-full w-full object-cover" />
+              </button>
+            ))}
+          </div>
+
+          {/* Room pricing by sharing */}
+          <div>
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Room Sharing & Pricing</p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {roomPrices.map(({ sharing, label, price }) => (
+                <button key={sharing} onClick={() => setSelectedSharing(sharing)}
+                  className={`rounded-xl border p-3 text-center transition-all ${selectedSharing === sharing ? "border-primary/50 bg-primary/15" : "border-white/10 bg-white/5 hover:bg-white/8"}`}>
+                  <p className={`text-lg font-bold ${selectedSharing === sharing ? "text-primary" : "text-foreground"}`}>
+                    â‚¹{price.toLocaleString()}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{label} sharing</p>
+                  <p className="text-[9px] text-muted-foreground">/mo per bed</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* description + amenities + rules */}
+          <div className="rounded-2xl glass-strong p-5 space-y-4">
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">About</p>
+              <p className="text-sm leading-relaxed text-muted-foreground">{pg.description}</p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Amenities</p>
+              <div className="flex flex-wrap gap-2">
+                {amenityNames.map(({ Icon, label }) => (
+                  <div key={label} className="flex items-center gap-1.5 rounded-xl bg-primary/10 px-3 py-1.5 text-xs text-primary">
+                    <Icon className="h-3.5 w-3.5" />{label}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">House Rules</p>
+              <div className="space-y-1.5">
+                {pg.rules.map((r) => (
+                  <div key={r} className="flex items-center gap-2.5 text-xs text-muted-foreground">
+                    <Check className="h-3.5 w-3.5 shrink-0 text-primary" />{r}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* â”€â”€ RIGHT COLUMN â”€â”€ */}
+        <div className="space-y-4">
+
+          {/* selected sharing price card */}
+          <div className="rounded-2xl glass-strong p-5">
+            <div className="flex items-center justify-between mb-1">
+              <p className="text-2xl font-bold text-primary">
+                â‚¹{roomPrices.find((r) => r.sharing === selectedSharing)?.price.toLocaleString() ?? pg.price.toLocaleString()}
+              </p>
+              <span className="rounded-full bg-primary/15 px-3 py-1 text-xs text-primary font-semibold">
+                {roomPrices.find((r) => r.sharing === selectedSharing)?.label} sharing
+              </span>
+            </div>
+            <p className="text-xs text-muted-foreground">per bed / month</p>
+
+            <div className="grid grid-cols-2 gap-3 mt-4">
+              {[
+                { label: "Total Beds",   value: String(pg.totalBeds) },
+                { label: "Available",    value: String(pg.available), },
+              ].map(({ label, value }) => (
+                <div key={label} className="rounded-xl bg-white/5 p-3 text-center">
+                  <p className="text-base font-bold">{value}</p>
+                  <p className="text-[10px] text-muted-foreground mt-0.5">{label}</p>
+                </div>
+              ))}
+            </div>
+
+            <button className="mt-4 w-full rounded-xl py-3 text-sm font-bold text-primary-foreground shadow-glow hover:opacity-90 transition-all"
+              style={{ background: "var(--gradient-primary)" }}>
+              Request a Visit
+            </button>
+          </div>
+
+          {/* location + map */}
+          <div className="rounded-2xl glass-strong p-5 space-y-3">
+            <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Location</p>
+            <div className="flex items-start gap-2">
+              <MapPin className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+              <div>
+                <p className="text-sm font-medium">{pg.area}</p>
+                <p className="text-xs text-muted-foreground">{pg.city}, India</p>
+              </div>
+            </div>
+
+            {/* static map preview */}
+            <div className="relative h-44 rounded-xl overflow-hidden border border-white/10">
+              <iframe
+                src={`https://maps.google.com/maps?q=${encodeURIComponent(pg.area + ", " + pg.city + ", India")}&output=embed&z=14`}
+                className="w-full h-full border-0"
+                loading="lazy"
+                title="PG Location Map"
+              />
+              {/* directions overlay button */}
+              <a href={mapsUrl} target="_blank" rel="noopener noreferrer"
+                className="absolute bottom-2 right-2 flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-semibold text-primary-foreground shadow-lg hover:opacity-90 transition-all">
+                <MapPin className="h-3.5 w-3.5" /> Get Directions
+              </a>
+            </div>
+            <p className="text-[10px] text-muted-foreground text-center">Click "Get Directions" to navigate from your current location</p>
+          </div>
+
+          {/* about + rating */}
+          <div className="rounded-2xl glass-strong p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">{pg.name}</p>
+              <div className="flex items-center gap-1">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Star key={i} className={`h-3.5 w-3.5 ${i < Math.floor(pg.rating) ? "fill-amber-400 text-amber-400" : "text-white/20"}`} />
+                ))}
+                <span className="text-xs font-semibold ml-1">{pg.rating}</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground">
+              <div className="flex items-center gap-1.5"><BedDouble className="h-3.5 w-3.5 text-primary" />{pg.type} sharing</div>
+              <div className="flex items-center gap-1.5"><Shield className="h-3.5 w-3.5 text-emerald-400" />{pg.verified ? "Verified" : "Unverified"}</div>
+              <div className="flex items-center gap-1.5"><Building2 className="h-3.5 w-3.5 text-violet-400" />{pg.totalBeds} total beds</div>
+              <div className="flex items-center gap-1.5"><CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />{pg.available} available</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    2. FIND PG (SEARCH)
-══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 function FindPG() {
-  const [search, setSearch] = useState("");
-  const [saved, setSaved] = useState<string[]>([]);
+  const [search, setSearch]     = useState("");
+  const [saved, setSaved]       = useState<string[]>([]);
+  const [selected, setSelected] = useState<PGListing | null>(null);
+
   const filtered = PG_LISTINGS.filter((p) =>
     p.name.toLowerCase().includes(search.toLowerCase()) ||
     p.city.toLowerCase().includes(search.toLowerCase()) ||
     p.area.toLowerCase().includes(search.toLowerCase())
   );
 
+  if (selected) {
+    return <PGDetailPage pg={selected} onBack={() => setSelected(null)} />;
+  }
+
   return (
     <motion.div initial="hidden" animate="show" variants={stagger} className="space-y-6">
       <FadeUp>
-        {/* AI search bar */}
         <div className="relative overflow-hidden rounded-2xl p-5" style={{ background: "linear-gradient(135deg, oklch(0.74 0.13 220 / 0.15), oklch(0.22 0.05 258))" }}>
           <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full opacity-30 blur-3xl" style={{ background: "var(--gradient-primary)" }} />
           <div className="relative flex items-center gap-3">
             <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl" style={{ background: "var(--gradient-primary)" }}>
               <Bot className="h-4 w-4 text-primary-foreground" />
             </div>
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tell AI what you need… e.g. 'PG near Hitech City under ₹10k'"
-              className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground/60 focus:outline-none"
-            />
-            <button className="hidden rounded-xl px-4 py-2 text-xs font-medium text-primary-foreground sm:block" style={{ background: "var(--gradient-primary)" }}>
+            <input value={search} onChange={(e) => setSearch(e.target.value)}
+              placeholder="Tell AI what you needâ€¦ e.g. 'PG near Hitech City under â‚¹10k'"
+              className="flex-1 bg-transparent text-sm placeholder:text-muted-foreground/60 focus:outline-none" />
+            <button className="hidden rounded-xl px-4 py-2 text-xs font-medium text-primary-foreground sm:block"
+              style={{ background: "var(--gradient-primary)" }}>
               <Sparkles className="h-3.5 w-3.5" />
             </button>
           </div>
           <div className="mt-3 flex flex-wrap gap-2">
-            {["Under ₹10k", "Veg food", "Near metro", "AC rooms", "Single sharing"].map((tag) => (
+            {["Under â‚¹10k", "Veg food", "Near metro", "AC rooms", "Single sharing"].map((tag) => (
               <button key={tag} onClick={() => setSearch(tag)}
                 className="rounded-full bg-white/8 px-3 py-1 text-[10px] text-muted-foreground hover:bg-white/15 hover:text-foreground transition-all">
                 {tag}
@@ -291,7 +648,6 @@ function FindPG() {
               initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95 }} transition={{ delay: i * 0.05 }}>
               <Card className="overflow-hidden group">
-                {/* hero */}
                 <div className="relative h-36 bg-gradient-to-br from-primary/20 to-violet-500/15 flex items-center justify-center">
                   <Building2 className="h-14 w-14 text-primary/25" />
                   <div className="absolute left-3 top-3 rounded-full glass px-2.5 py-1 text-[10px] font-semibold text-primary">
@@ -302,8 +658,7 @@ function FindPG() {
                       <Shield className="h-3 w-3" />
                     </div>
                   )}
-                  <button
-                    onClick={() => setSaved((p) => p.includes(pg.id) ? p.filter((x) => x !== pg.id) : [...p, pg.id])}
+                  <button onClick={() => setSaved((p) => p.includes(pg.id) ? p.filter((x) => x !== pg.id) : [...p, pg.id])}
                     className="absolute bottom-3 right-3 grid h-7 w-7 place-items-center rounded-full glass transition-colors hover:bg-white/20">
                     <Heart className={`h-3.5 w-3.5 transition-colors ${saved.includes(pg.id) ? "fill-red-400 text-red-400" : "text-muted-foreground"}`} />
                   </button>
@@ -333,10 +688,11 @@ function FindPG() {
                   </div>
 
                   <div className="mt-3 flex items-center justify-between border-t border-white/5 pt-3">
-                    <p className="text-sm font-semibold text-gradient-primary">
-                      ₹{pg.price.toLocaleString()}<span className="text-[10px] text-muted-foreground font-normal">/mo</span>
+                    <p className="text-sm font-semibold text-primary">
+                      â‚¹{pg.price.toLocaleString()}<span className="text-[10px] text-muted-foreground font-normal">/mo</span>
                     </p>
-                    <button className="flex items-center gap-1 rounded-xl px-3 py-1.5 text-[10px] font-medium text-primary-foreground"
+                    <button onClick={() => setSelected(pg)}
+                      className="flex items-center gap-1 rounded-xl px-3 py-1.5 text-[10px] font-medium text-primary-foreground"
                       style={{ background: "var(--gradient-primary)" }}>
                       View <ArrowRight className="h-3 w-3" />
                     </button>
@@ -351,9 +707,10 @@ function FindPG() {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════
+
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    3. MY PG
-══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 function MyPG() {
   const [tab, setTab] = useState<"overview" | "amenities" | "rules">("overview");
@@ -382,12 +739,12 @@ function MyPG() {
           <div className="grid grid-cols-3 divide-x divide-white/5 border-b border-white/5">
             {[
               { label: "Room",      value: "204",            sub: "Double sharing" },
-              { label: "Rent",      value: `₹${MY_PG.rent.toLocaleString()}`, sub: "per month" },
+              { label: "Rent",      value: `â‚¹${MY_PG.rent.toLocaleString()}`, sub: "per month" },
               { label: "Move-in",   value: "1 Apr",          sub: "2025" },
             ].map((s) => (
               <div key={s.label} className="p-4 text-center">
                 <p className="text-base font-semibold">{s.value}</p>
-                <p className="text-[10px] text-muted-foreground mt-0.5">{s.label} · {s.sub}</p>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{s.label} Â· {s.sub}</p>
               </div>
             ))}
           </div>
@@ -424,7 +781,7 @@ function MyPG() {
                     </div>
                     <div className="rounded-xl bg-white/5 p-4">
                       <p className="text-xs text-muted-foreground mb-1">Next Rent Due</p>
-                      <p className="text-sm font-semibold text-amber-400">₹{MY_PG.rent.toLocaleString()}</p>
+                      <p className="text-sm font-semibold text-amber-400">â‚¹{MY_PG.rent.toLocaleString()}</p>
                       <p className="text-xs text-muted-foreground mt-1">{MY_PG.dueDate}</p>
                       <button className="mt-2 flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-[10px] font-medium text-primary-foreground"
                         style={{ background: "var(--gradient-primary)" }}>
@@ -459,7 +816,7 @@ function MyPG() {
               )}
               {tab === "rules" && (
                 <div className="space-y-2">
-                  {["No guests after 10pm", "Veg food only in common kitchen", "Quiet hours 11pm–7am", "No smoking inside premises", "Monthly rent by 1st of each month"].map((r) => (
+                  {["No guests after 10pm", "Veg food only in common kitchen", "Quiet hours 11pmâ€“7am", "No smoking inside premises", "Monthly rent by 1st of each month"].map((r) => (
                     <div key={r} className="flex items-center gap-3 rounded-xl bg-white/5 px-4 py-3 text-sm">
                       <Check className="h-3.5 w-3.5 shrink-0 text-primary" />
                       {r}
@@ -475,9 +832,9 @@ function MyPG() {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    4. ROOMMATES
-══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 function RoommatesSection() {
   return (
@@ -544,9 +901,9 @@ function RoommatesSection() {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    5. PAYMENTS
-══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 function PaymentsSection() {
   const paid   = PAYMENT_HISTORY.filter((p) => p.status === "Paid").reduce((s, p) => s + p.amount, 0);
@@ -558,9 +915,9 @@ function PaymentsSection() {
 
       <div className="grid gap-4 sm:grid-cols-3">
         {[
-          { label: "Total Paid",    value: `₹${paid.toLocaleString()}`,    color: "from-emerald-500/20 to-teal-500/20",  text: "text-emerald-400" },
-          { label: "Pending",       value: `₹${pending.toLocaleString()}`, color: "from-amber-500/20 to-orange-500/20",  text: "text-amber-400" },
-          { label: "Monthly Rent",  value: `₹${MY_PG.rent.toLocaleString()}`, color: "from-primary/15 to-cyan-500/15",   text: "text-primary" },
+          { label: "Total Paid",    value: `â‚¹${paid.toLocaleString()}`,    color: "from-emerald-500/20 to-teal-500/20",  text: "text-emerald-400" },
+          { label: "Pending",       value: `â‚¹${pending.toLocaleString()}`, color: "from-amber-500/20 to-orange-500/20",  text: "text-amber-400" },
+          { label: "Monthly Rent",  value: `â‚¹${MY_PG.rent.toLocaleString()}`, color: "from-primary/15 to-cyan-500/15",   text: "text-primary" },
         ].map((c, i) => (
           <FadeUp key={c.label} delay={i * 0.07}>
             <Card className={`p-5 bg-gradient-to-br ${c.color}`}>
@@ -579,7 +936,7 @@ function PaymentsSection() {
               <AlertCircle className="h-5 w-5 text-amber-400 shrink-0" />
               <div>
                 <p className="text-sm font-medium">Rent due on {MY_PG.dueDate}</p>
-                <p className="text-xs text-muted-foreground">₹{MY_PG.rent.toLocaleString()} pending</p>
+                <p className="text-xs text-muted-foreground">â‚¹{MY_PG.rent.toLocaleString()} pending</p>
               </div>
             </div>
             <button className="rounded-xl px-4 py-2 text-xs font-semibold text-primary-foreground shrink-0"
@@ -608,7 +965,7 @@ function PaymentsSection() {
                 {PAYMENT_HISTORY.map((p, i) => (
                   <tr key={p.id} className={`border-b border-white/5 hover:bg-white/4 transition-colors ${i === PAYMENT_HISTORY.length - 1 ? "border-0" : ""}`}>
                     <td className="px-5 py-3.5 font-medium">{p.month}</td>
-                    <td className="px-5 py-3.5 text-primary font-semibold">₹{p.amount.toLocaleString()}</td>
+                    <td className="px-5 py-3.5 text-primary font-semibold">â‚¹{p.amount.toLocaleString()}</td>
                     <td className="px-5 py-3.5 text-xs text-muted-foreground">{p.date}</td>
                     <td className="px-5 py-3.5 text-xs text-muted-foreground">{p.method}</td>
                     <td className="px-5 py-3.5"><StatusPill status={p.status} /></td>
@@ -628,9 +985,9 @@ function PaymentsSection() {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    6. MAINTENANCE
-══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 function MaintenanceSection() {
   const [showForm, setShowForm] = useState(false);
@@ -658,7 +1015,7 @@ function MaintenanceSection() {
               <p className="text-sm font-semibold mb-4">New Maintenance Request</p>
               <div className="space-y-3">
                 <input value={newTitle} onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="Describe the issue…"
+                  placeholder="Describe the issueâ€¦"
                   className="w-full rounded-xl bg-white/5 border border-white/10 px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50" />
                 <div className="flex gap-2">
                   <button onClick={() => { setShowForm(false); setNewTitle(""); }}
@@ -702,11 +1059,60 @@ function MaintenanceSection() {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    7. COMMUNITY
-══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 function CommunitySection() {
+  const announcements = getStoredAnnouncements().filter(a => {
+    if (!a.property || a.property === "All") return true;
+    const target = a.property.toLowerCase();
+    const mine = MY_PG.name.toLowerCase();
+    return mine.includes(target) || target.includes(mine);
+  });
+  const notices = getStoredNotices();
+  const [polls, setPolls] = useState<StoredPoll[]>(() => getStoredPolls());
+  const [votedPolls, setVotedPolls] = useState<string[]>(() => {
+    if (typeof window === "undefined") return [];
+    try {
+      return JSON.parse(localStorage.getItem("ss_voted_polls") || "[]");
+    } catch {
+      return [];
+    }
+  });
+  const [userVotes, setUserVotes] = useState<Record<string, string>>(() => {
+    if (typeof window === "undefined") return {};
+    try {
+      return JSON.parse(localStorage.getItem("ss_user_votes") || "{}");
+    } catch {
+      return {};
+    }
+  });
+
+  const handleVote = (pollId: string, optionText: string) => {
+    if (votedPolls.includes(pollId)) return;
+    
+    const updatedPolls = polls.map(p => {
+      if (p.id === pollId) {
+        return {
+          ...p,
+          options: p.options.map(o => o.text === optionText ? { ...o, votes: o.votes + 1 } : o)
+        };
+      }
+      return p;
+    });
+    setPolls(updatedPolls);
+    localStorage.setItem("ss_polls", JSON.stringify(updatedPolls));
+    
+    const updatedVoted = [...votedPolls, pollId];
+    setVotedPolls(updatedVoted);
+    localStorage.setItem("ss_voted_polls", JSON.stringify(updatedVoted));
+
+    const updatedUserVotes = { ...userVotes, [pollId]: optionText };
+    setUserVotes(updatedUserVotes);
+    localStorage.setItem("ss_user_votes", JSON.stringify(updatedUserVotes));
+  };
+
   return (
     <motion.div initial="hidden" animate="show" variants={stagger} className="space-y-6">
       <h2 className="text-lg font-semibold">Community</h2>
@@ -714,15 +1120,26 @@ function CommunitySection() {
       <div className="grid gap-5 lg:grid-cols-2">
         <FadeUp>
           <Card className="p-5">
-            <p className="text-sm font-semibold mb-4">📢 Announcements</p>
+            <p className="text-sm font-semibold mb-4">ðŸ“¢ Announcements</p>
             <div className="space-y-3">
-              {ANNOUNCEMENTS.map((a) => (
-                <div key={a.id} className="rounded-xl bg-white/5 p-4 border border-white/8">
-                  <p className="text-sm font-medium">{a.title}</p>
-                  <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">{a.body}</p>
-                  <p className="mt-2 text-[10px] text-muted-foreground">{a.date}</p>
-                </div>
-              ))}
+              {announcements.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-8">No announcements at the moment.</p>
+              ) : (
+                announcements.map((a) => (
+                  <div key={a.id} className="rounded-xl bg-white/5 p-4 border border-white/8">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-medium text-foreground">{a.title}</p>
+                      {a.property !== "All" && (
+                        <span className="shrink-0 rounded-full bg-primary/15 px-2 py-0.5 text-[9px] font-semibold text-primary">
+                          {a.property}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-1.5 text-xs text-muted-foreground leading-relaxed">{a.body}</p>
+                    <p className="mt-2 text-[10px] text-muted-foreground">{a.dateStr}</p>
+                  </div>
+                ))
+              )}
             </div>
           </Card>
         </FadeUp>
@@ -730,31 +1147,76 @@ function CommunitySection() {
         <div className="space-y-4">
           <FadeUp delay={0.1}>
             <Card className="p-5">
-              <p className="text-sm font-semibold mb-3">📅 Notice Board</p>
-              {["Water tank cleaning — Sunday 8am", "New food menu from July 1st", "Gym hours changed: 6am–10pm"].map((n) => (
-                <div key={n} className="flex items-center gap-3 py-2.5 border-b border-white/5 last:border-0 text-xs">
-                  <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary" />
-                  {n}
-                </div>
-              ))}
+              <p className="text-sm font-semibold mb-3">ðŸ“… Notice Board</p>
+              <div className="space-y-1 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-white/10">
+                {notices.length === 0 ? (
+                  <p className="text-xs text-muted-foreground text-center py-4">No notices posted.</p>
+                ) : (
+                  notices.map((n, idx) => (
+                    <div key={idx} className="flex items-start gap-3 py-2.5 border-b border-white/5 last:border-0 text-xs">
+                      <div className="h-1.5 w-1.5 shrink-0 rounded-full bg-primary mt-1.5" />
+                      <span className="leading-relaxed">{n}</span>
+                    </div>
+                  ))
+                )}
+              </div>
             </Card>
           </FadeUp>
 
           <FadeUp delay={0.15}>
             <Card className="p-5">
-              <p className="text-sm font-semibold mb-3">📊 Poll</p>
-              <p className="text-xs text-muted-foreground mb-3">When should we hold the community meet?</p>
-              {[["Saturday evening", 60], ["Sunday afternoon", 30], ["Weekday night", 10]].map(([opt, pct]) => (
-                <div key={opt} className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2 mb-2 hover:bg-white/10 cursor-pointer transition-all">
-                  <span className="text-xs">{opt}</span>
-                  <div className="flex items-center gap-2">
-                    <div className="h-1.5 w-16 rounded-full bg-primary/20 overflow-hidden">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+              <p className="text-sm font-semibold mb-3">ðŸ“Š Poll</p>
+              {polls.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-4">No active polls.</p>
+              ) : (
+                (() => {
+                  const activePoll = polls[0];
+                  const hasVoted = votedPolls.includes(activePoll.id);
+                  const total = activePoll.options.reduce((s, o) => s + o.votes, 0) || 1;
+                  const votedOption = userVotes[activePoll.id];
+                  
+                  return (
+                    <div className="space-y-3">
+                      <p className="text-xs text-foreground/90 font-medium mb-1">{activePoll.question}</p>
+                      {activePoll.options.map((opt) => {
+                        const pct = Math.round((opt.votes / total) * 100);
+                        const isSelected = votedOption === opt.text;
+                        
+                        return (
+                          <div
+                            key={opt.text}
+                            onClick={() => handleVote(activePoll.id, opt.text)}
+                            className={`flex items-center justify-between rounded-xl px-3 py-2.5 transition-all border ${
+                              hasVoted 
+                                ? isSelected
+                                  ? "bg-primary/10 border-primary/30 cursor-default"
+                                  : "bg-white/5 border-white/5 cursor-default"
+                                : "bg-white/5 border-white/5 hover:bg-white/10 hover:border-white/10 cursor-pointer"
+                            }`}
+                          >
+                            <span className="text-xs font-medium text-foreground/90 flex items-center gap-1.5">
+                              {opt.text}
+                              {isSelected && <Check className="h-3 w-3 text-primary shrink-0" />}
+                            </span>
+                            
+                            {hasVoted && (
+                              <div className="flex items-center gap-2">
+                                <div className="h-1.5 w-16 rounded-full bg-primary/20 overflow-hidden">
+                                  <div className="h-full rounded-full bg-primary" style={{ width: `${pct}%` }} />
+                                </div>
+                                <span className="text-[10px] text-muted-foreground w-6 text-right">{pct}%</span>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                      <p className="text-[10px] text-muted-foreground/60 text-right mt-1">
+                        {hasVoted ? "Results showing (voted)" : "Tap an option to submit your vote"} Â· Total: {activePoll.options.reduce((s, o) => s + o.votes, 0)} votes
+                      </p>
                     </div>
-                    <span className="text-[10px] text-muted-foreground w-6">{pct}%</span>
-                  </div>
-                </div>
-              ))}
+                  );
+                })()
+              )}
             </Card>
           </FadeUp>
         </div>
@@ -763,9 +1225,9 @@ function CommunitySection() {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    8. PROFILE
-══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 function ProfileSection({ name, email }: { name: string; email: string }) {
   return (
@@ -794,8 +1256,8 @@ function ProfileSection({ name, email }: { name: string; email: string }) {
           <div className="space-y-4">
             {[
               { title: "Personal Info", icon: UserCircle, rows: ["Full Name: " + name, "Email: " + email, "Phone: 98765 43210", "City: Hyderabad"] },
-              { title: "Preferences",   icon: Heart,      rows: ["Food: Vegetarian", "Schedule: Day shift", "Languages: Hindi, English", "Budget: ₹8k–₹12k"] },
-              { title: "Documents",     icon: FileText,   rows: ["Aadhar Card — Uploaded", "PAN Card — Pending", "Rental Agreement — Signed"] },
+              { title: "Preferences",   icon: Heart,      rows: ["Food: Vegetarian", "Schedule: Day shift", "Languages: Hindi, English", "Budget: â‚¹8kâ€“â‚¹12k"] },
+              { title: "Documents",     icon: FileText,   rows: ["Aadhar Card â€” Uploaded", "PAN Card â€” Pending", "Rental Agreement â€” Signed"] },
             ].map((s, i) => (
               <FadeUp key={s.title} delay={i * 0.08}>
                 <Card className="p-5">
@@ -823,9 +1285,9 @@ function ProfileSection({ name, email }: { name: string; email: string }) {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    SIDEBAR
-══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 function Sidebar({ active, setActive, collapsed, setCollapsed, name }: {
   active: string; setActive: (s: string) => void;
@@ -885,9 +1347,9 @@ function Sidebar({ active, setActive, collapsed, setCollapsed, name }: {
   );
 }
 
-/* ══════════════════════════════════════════════════════════════
+/* â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
    ROOT
-══════════════════════════════════════════════════════════════ */
+â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â• */
 
 function UserDashboard() {
   const navigate = useNavigate();
